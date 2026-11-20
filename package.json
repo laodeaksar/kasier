@@ -1,0 +1,44 @@
+{
+  "name": "kasier",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "start": "vite preview --host 0.0.0.0 --port 3000",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "@formisch/react": "1.2.0",
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-start": "1.169.7",
+    "@tanstack/react-store": "0.11.2",
+    "@tanstack/react-table": "9.3.1",
+    "better-auth": "1.7.27",
+    "daisyui": "5.8.1",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.19",
+    "postgres": "4.1.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwindcss": "4.3.5",
+    "valibot": "1.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.5",
+    "@tanstack/router-plugin": "1.169.0",
+    "@types/node": "22.15.29",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "drizzle-kit": "0.31.11",
+    "tsx": "4.20.3",
+    "typescript": "5.8.3",
+    "vite": "8.3.8"
+  }
+}
