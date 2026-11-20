@@ -1,101 +1,78 @@
-# PRD: Kasier untuk AR Shop
+# PRD: Kasier — Aplikasi Stok Sembako AR Shop
 
-*Dokumen spesifikasi fungsional untuk AI Coding Builder (Cursor, Bolt, Lovable). Tanpa kode program.*
+> Dokumen ini adalah spesifikasi fungsional untuk AI Coding Builder (Cursor, Bolt, Lovable). Dokumen ini tidak berisi kode. Bagian bertanda `[...]` belum diputuskan: **jangan ditebak**, tanyakan ke Project Owner.
 
 ## 1. Ringkasan Produk
+**Kasier** adalah aplikasi web untuk toko sembako **AR Shop**. Aplikasi membantu mencatat **barang masuk**, **transaksi kasir sederhana**, dan **utang pembeli**.
 
-**Kasier** adalah aplikasi web sederhana untuk **AR Shop** (toko sembako). Masalah utama: pemilik dan kasir sering lupa mencatat barang masuk dan utang pembeli. Aplikasi ini mencatat **barang masuk**, melayani **transaksi kasir**, mencatat **utang pembeli**, dan menyediakan **katalog barang** yang bisa dilihat pembeli.
+**Masalah utama:** pencatatan barang masuk dan utang pembeli sering terlupa.
 
-## 2. Target Pengguna dan Hak Akses
+Aplikasi dipakai di **HP dan komputer** (tampilan responsif).
 
-- **Kasir (1 orang)** dan **pemilik toko**: harus login. Dipakai di HP dan desktop, jadi tampilan harus **responsif** (menyesuaikan ukuran layar).
-- **Customer (pembeli):** tidak perlu akun dan tidak perlu login. Customer hanya membuka halaman katalog yang terbuka untuk umum.
+## 2. Target Pengguna
+| Peran | Jumlah | Keterangan |
+|---|---|---|
+| Kasir | 1 orang | Pengguna harian |
+| Pemilik | [jumlah belum ditentukan] | Ikut memakai aplikasi, hak akses lebih luas |
+| Customer | Umum | Hanya melihat katalog, **tanpa login** |
 
-**Kasir** boleh:
-- Mencatat barang masuk, transaksi kasir, utang, dan pembayaran utang
-- Melihat daftar barang dan stok
-
-Kasir **tidak boleh** menambah barang baru, mengubah harga, menghapus transaksi atau utang, maupun mengelola akun.
-
-**Pemilik** boleh semua hal di atas, ditambah:
-- Menambah barang baru dan mengubah harga
-- Mengunggah foto barang
-- Memilih barang mana saja yang tampil di katalog
-- Menghapus atau membatalkan transaksi dan utang
-- Mengelola akun pengguna
-
-**Customer** hanya boleh melihat katalog (hanya baca). Tidak ada akses ke stok detail, harga beli, transaksi, utang, atau akun.
-
-**Catatan untuk AI Builder:** hak akses dicek di sisi server, bukan hanya dengan menyembunyikan tombol di layar.
+### Hak Akses
+- **Kasir**: catat barang masuk, catat transaksi, catat utang, catat pembayaran utang, lihat stok.
+- **Pemilik** (semua hak kasir, ditambah): tambah barang, ubah harga, batalkan transaksi dan utang, kelola akun.
+- **Customer**: lihat katalog barang.
 
 ## 3. User Flow
 
-1. **Kasir/pemilik** login (masuk dengan akun).
-2. Di halaman utama, pilih menu: **Barang Masuk**, **Kasir**, **Utang**, atau **Daftar Barang**.
-3. **Barang Masuk:** pilih barang (atau tambah barang baru, khusus pemilik) → isi jumlah, harga beli, dan tanggal → simpan → stok bertambah otomatis.
-4. **Kasir:** pilih barang dan jumlah → total muncul otomatis → pilih **Lunas** atau **Utang** → simpan → stok berkurang otomatis.
-5. **Stok tidak cukup:** tampilkan pesan, **transaksi tidak bisa disimpan** sampai jumlah disesuaikan.
-6. **Utang:** isi nama dan kontak pembeli. Saat pembeli membayar, catat pembayaran dan sisa utang diperbarui.
-7. **Customer:** membuka alamat katalog → melihat daftar barang dengan foto, nama, harga jual, dan status tersedia/habis.
+### Kasir / Pemilik
+1. Login (verifikasi identitas pengguna).
+2. Masuk ke dashboard stok.
+3. Pilih tugas:
+   - **Barang masuk** → pilih barang → isi jumlah dan harga beli → simpan.
+   - **Transaksi** → pilih barang dan jumlah → pilih lunas atau utang → simpan.
+   - **Bayar utang** → pilih pembeli → isi nominal → simpan.
 
-## 4. Fitur MVP (Wajib di Versi Pertama)
+### Customer
+1. Buka halaman katalog (tanpa login).
+2. Lihat nama, harga jual, foto, dan status tersedia/habis.
 
-- Login kasir dan pemilik, dengan pembagian hak akses
-- Daftar barang: nama, satuan (kg, liter, pcs), harga beli, harga jual, foto, stok
-- Unggah foto barang (oleh pemilik)
-- Catat barang masuk: tanggal, barang, jumlah, harga beli
-- Kasir sederhana: total otomatis, stok berkurang otomatis
-- Pemblokiran transaksi jika stok tidak cukup
-- Catat utang: nama, **kontak**, jumlah, tanggal, riwayat pembayaran, sisa utang
-- Daftar utang aktif
-- **Pengaturan tampil di katalog:** setiap barang punya pilihan "Tampilkan di katalog" (ya/tidak), hanya bisa diubah oleh pemilik. Barang baru **tidak tampil** sampai pemilik mengaktifkannya.
-- **Katalog publik:** halaman hanya-baca berisi foto, nama, harga jual, dan status tersedia/habis, tanpa login
-- Tampilan nyaman di HP dan desktop
+## 4. Fitur
 
-## 5. Fitur Masa Depan (Jangan Dikerjakan Dulu)
+### Fitur MVP (wajib di rilis pertama)
+1. **Catat barang masuk**: jumlah, harga beli, tanggal. Stok bertambah otomatis.
+2. **Kasir sederhana**: pilih barang, total terhitung otomatis, stok berkurang. Jika stok tidak cukup, **transaksi diblokir** (bukan sekadar peringatan).
+3. **Catat utang**: nama pembeli, **kontak pembeli**, nominal, dan pembayaran utang. Sisa utang terhitung otomatis.
+4. **Daftar stok**: tabel stok terkini.
+5. **Pembatalan transaksi** (hanya pemilik): transaksi **ditandai batal**, tidak dihapus, dan stok dikembalikan.
+6. **Manajemen barang** (hanya pemilik): tambah barang, ubah harga, unggah foto (JPG/PNG/WebP, maks 1 MB).
+7. **Katalog publik**: hanya barang yang dipilih pemilik yang tampil. Ada **batas jumlah akses (rate limit)** agar tidak disalahgunakan.
+8. **Login dan hak akses** sesuai peran.
 
-- Cetak struk atau nota
-- Laporan penjualan, keuntungan, dan grafik (Recharts dipakai di sini)
-- Peringatan stok menipis
-- Pengingat utang lewat WhatsApp
-- Customer memesan barang lewat aplikasi
-- Customer melihat sisa utangnya sendiri
-- Banyak cabang dan banyak kasir
-- Scan barcode
+### Fitur Masa Depan (bukan prioritas awal)
+- Grafik/laporan penjualan dan stok (usulan).
+- [Fitur lain belum ditentukan]
 
-## 6. Panduan Logika Aplikasi
+## 5. Panduan Logika Aplikasi
+- **Barang masuk disimpan**: tambah catatan barang masuk, lalu tambahkan jumlahnya ke stok barang.
+- **Transaksi disimpan**: cek stok dulu. Jika kurang, tampilkan pesan dan jangan simpan. Jika cukup, simpan transaksi dan kurangi stok.
+- **Transaksi berstatus utang**: otomatis membuat catatan utang atas nama pembeli.
+- **Pembayaran utang disimpan**: kurangi sisa utang. Jika sisa 0, status utang menjadi lunas.
+- **Transaksi dibatalkan**: ubah status menjadi "batal" (data tidak dihapus), kembalikan stok, sesuaikan utang terkait.
+- **Katalog**: tampilkan hanya barang yang ditandai pemilik. Status "habis" muncul otomatis jika stok 0.
+- **Hak akses**: setiap aksi diperiksa sesuai peran. Kasir tidak boleh mengubah harga atau membatalkan transaksi.
 
-- Saat **"Simpan"** di Barang Masuk ditekan, simpan ke tabel *barang masuk* dan **tambahkan** jumlahnya ke stok barang.
-- Saat transaksi kasir disimpan, simpan ke tabel *transaksi* dan **kurangi** stok sesuai jumlah dibeli.
-- Total belanja = harga jual × jumlah, dijumlahkan untuk semua barang.
-- **Sebelum menyimpan transaksi**, cek stok. Jika jumlah beli lebih besar dari stok, tampilkan error dan **batalkan penyimpanan**. Stok tidak boleh minus.
-- Jika cara bayar **Utang**, buat atau perbarui catatan utang atas nama pembeli beserta kontaknya.
-- Sisa utang = total utang − total pembayaran. Pembayaran tidak boleh melebihi sisa utang.
-- **Katalog:** ambil dari tabel barang **hanya barang yang ditandai "Tampilkan di katalog"**, dan hanya foto, nama, harga jual, dan status. Status = **Tersedia** jika stok lebih dari 0, **Habis** jika stok 0. Jumlah stok pasti dan **harga beli tidak boleh pernah dikirim ke layar customer**.
-- Halaman katalog tidak butuh login. Semua halaman dan data lain wajib login dan dicek perannya.
-- Semua data tersimpan permanen di database, bukan hanya di layar.
+## 6. Tech-Stack (semua gratis dipakai)
+- **Struktur proyek**: Turborepo (alat untuk mengelola beberapa bagian aplikasi dalam satu folder proyek / monorepo).
+- **Tampilan web**: TanStack React Start, TanStack React Table (tabel), TanStack React Store (penyimpan data sementara di layar), Recharts (grafik), DaisyUI + Tailwind (gaya tampilan).
+- **Formulir dan validasi input**: Formisch + Valibot.
+- **Server dan database**: Hono (server API, yaitu penghubung antara tampilan dan database), Drizzle (alat akses database), PostgreSQL.
+- **Login**: Better Auth.
+- **Hosting dan database gratis**: misalnya Vercel dan Supabase. [Batas free tier perlu dicek sebelum dipilih]
+- **Penyimpanan foto barang**: [belum ditentukan]
 
-## 7. Tech-Stack
-
-| Kebutuhan | Teknologi |
-|---|---|
-| Kerangka aplikasi web (full-stack) | TanStack React Start |
-| Tabel data | TanStack React Table |
-| Penyimpanan status di layar (*state*) | TanStack React Store |
-| Grafik (fitur masa depan) | Recharts |
-| Form dan validasi (*pengecekan isian*) | Formisch + Valibot |
-| Server (*API*, penghubung layar dan data) | Hono |
-| Pengelola database (*ORM*) | Drizzle |
-| Database | PostgreSQL |
-| Login dan peran (*Auth*, sistem masuk akun) | Better Auth |
-| Tampilan | DaisyUI + Tailwind |
-
-**Hosting gratis (Rp0):** database di free tier **Supabase** atau **Neon**, aplikasi di **Vercel** (free tier). Untuk menyimpan foto barang, bisa memakai **Supabase Storage** (tempat penyimpanan file) di free tier. Cek batas gratis di situs resmi masing-masing.
-
-**Catatan untuk AI Builder:** kerjakan alur utama dulu (barang masuk → kasir → utang), lalu katalog. Jangan membuat fitur dari bagian "Fitur Masa Depan".
-
-## 8. Keputusan Tambahan
-
-- Pembatalan transaksi oleh pemilik: stok dikembalikan, transaksi ditandai batal (tidak dihapus permanen).
-- Foto barang: hanya JPG, PNG, atau WebP, maksimum 1 MB.
-- Katalog publik dibatasi lajunya (*rate limit*, yaitu batas jumlah permintaan per pengunjung dalam waktu tertentu).
+## 7. Hal yang Belum Ditentukan
+- [Kategori dan satuan barang (kg/liter/pcs)]
+- [Batas waktu jatuh tempo utang, jika ada]
+- [Perkiraan jumlah barang dan transaksi per hari]
+- [Bahasa tampilan aplikasi]
+- [Metode pembayaran selain tunai dan utang]
+- [Penyimpanan foto dan layanan hosting final]
