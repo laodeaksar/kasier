@@ -43,14 +43,19 @@ function DashboardPage() {
     <AppShell user={user} onLogout={handleLogout}>
       <section className="space-y-6">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Tahap 2</p>
-          <h1 className="mt-2 text-3xl font-bold text-base-content">Produk dan inventaris</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Tahap 3</p>
+          <h1 className="mt-2 text-3xl font-bold text-base-content">Kasir dan inventaris</h1>
           <p className="mt-2 max-w-2xl text-base-content/70">
-            Kelola daftar barang dan catat barang masuk. Perubahan stok disimpan di database melalui aturan server.
+            Catat transaksi dengan harga dari server. Stok berubah bersama transaksi dan tidak dapat menjadi minus.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Link to="/kasir" className="rounded-2xl border border-primary/30 bg-base-100 p-5 shadow-sm transition hover:border-primary">
+            <h2 className="font-bold">Kasir</h2>
+            <p className="mt-2 text-sm font-semibold text-primary">Catat transaksi</p>
+            <p className="mt-2 text-sm text-base-content/65">Pilih barang dan jumlah, lalu simpan pembayaran Lunas atau data pembeli Utang.</p>
+          </Link>
           <Link to="/barang" className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm transition hover:border-primary/50">
             <h2 className="font-bold">Daftar Barang</h2>
             <p className="mt-2 text-sm font-semibold text-primary">Buka daftar barang</p>

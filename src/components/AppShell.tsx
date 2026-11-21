@@ -37,6 +37,9 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           <Link to="/" className="btn btn-ghost btn-sm shrink-0">
             Ringkasan
           </Link>
+          <Link to="/kasir" className="btn btn-ghost btn-sm shrink-0">
+            Kasir
+          </Link>
           <Link to="/barang" className="btn btn-ghost btn-sm shrink-0">
             Daftar Barang
           </Link>
