@@ -5,8 +5,10 @@ import { ApiError, firstValidationMessage, readJsonBody } from '@/server/api/err
 import { requireRole } from '@/server/middleware/permissions'
 import { createProduct, listProducts, updateProductPrices } from '@/server/services/products'
 import { createStockIn, listStockIns } from '@/server/services/stock-ins'
+import { createCashierAccount, listCashierAccounts } from '@/server/services/users'
 import { productCreateSchema, productPriceUpdateSchema } from '@/shared/validators/products'
 import { stockInCreateSchema } from '@/shared/validators/stock-ins'
+import { cashierCreateSchema } from '@/shared/validators/users'
 
 export const api = new Hono()
 
@@ -76,4 +78,20 @@ api.post('/api/stock-ins', async (context) => {
   }
 
   return context.json({ stockIn: await createStockIn(result.output, session.user.id) }, 201)
+})
+
+api.get('/api/users', async (context) => {
+  await requireRole(context.req.raw, ['pemilik'])
+  return context.json({ users: await listCashierAccounts() })
+})
+
+api.post('/api/users', async (context) => {
+  await requireRole(context.req.raw, ['pemilik'])
+  const body = await readJsonBody(context.req.raw)
+  const result = v.safeParse(cashierCreateSchema, body)
+  if (!result.success) {
+    throw new ApiError(400, firstValidationMessage(result.issues))
+  }
+
+  return context.json({ user: await createCashierAccount(result.output) }, 201)
 })

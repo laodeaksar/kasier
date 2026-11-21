@@ -43,6 +43,11 @@ export function AppShell({ user, onLogout, children }: AppShellProps) {
           <Link to="/barang-masuk" className="btn btn-ghost btn-sm shrink-0">
             Barang Masuk
           </Link>
+          {user.role === 'pemilik' ? (
+            <Link to="/akun" className="btn btn-ghost btn-sm shrink-0">
+              Kelola Akun
+            </Link>
+          ) : null}
         </nav>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>

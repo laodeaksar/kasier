@@ -8,7 +8,7 @@ Fitur kasir/penjualan, utang, foto, dan katalog publik belum dibuat karena diker
 
 Buat project PostgreSQL di Neon pada free tier, lalu salin connection string PostgreSQL dari Neon. Connection string biasanya sudah berisi `sslmode=require`.
 
-Di folder proyek, salin `.env.example` menjadi `.env`, lalu isi enam variabel berikut:
+Di folder proyek, salin `env.template` menjadi `.env`, lalu ganti placeholder dengan nilai Anda. File `.env.example` tetap berisi nama variabel saja sesuai aturan proyek.
 
 ```text
 DATABASE_URL=isi_connection_string_dari_Neon
@@ -43,6 +43,7 @@ Buka `http://localhost:3000/login`, lalu masuk memakai `OWNER_EMAIL` dan `OWNER_
 3. Buka menu **Barang Masuk**, pilih barang, isi jumlah, harga beli saat datang, dan tanggal, lalu tekan **Simpan Barang Masuk**.
 4. Kembali ke **Daftar Barang**. Stok barang akan bertambah otomatis.
 5. Sebagai pemilik, gunakan tombol **Ubah harga** untuk memperbarui harga. Akun kasir hanya dapat melihat barang dan mencatat barang masuk.
+6. Sebagai pemilik, buka **Kelola Akun**, isi nama, email, dan kata sandi awal untuk membuat akun kasir. Akun yang dibuat otomatis berperan sebagai kasir.
 
 Setiap pencatatan barang masuk disimpan dalam satu transaksi database: catatan barang masuk dan penambahan stok berhasil bersama-sama atau dibatalkan bersama-sama.
 

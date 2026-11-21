@@ -71,6 +71,10 @@ export function getAuthForSeed() {
   return createAuth({ allowSignUp: true })
 }
 
+export function getAuthForAccountCreation() {
+  return createAuth({ allowSignUp: true })
+}
+
 export async function getSessionFromRequest(request: Request) {
   return getAuth().api.getSession({ headers: request.headers })
 }
