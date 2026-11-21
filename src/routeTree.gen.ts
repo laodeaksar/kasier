@@ -1,4 +1,4 @@
-///* eslint-disable */
+/* eslint-disable */
 
 // @ts-nocheck
 
@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AkunRouteImport } from './routes/akun'
 import { Route as BarangRouteImport } from './routes/barang'
 import { Route as BarangMasukRouteImport } from './routes/barang-masuk'
 import { Route as LoginRouteImport } from './routes/login'
@@ -18,6 +19,11 @@ import { Route as ApiSplatRouteImport } from './routes/api/$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AkunRoute = AkunRouteImport.update({
+  id: '/akun',
+  path: '/akun',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BarangRoute = BarangRouteImport.update({
@@ -43,6 +49,7 @@ const ApiSplatRoute = ApiSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/akun': typeof AkunRoute
   '/barang': typeof BarangRoute
   '/barang-masuk': typeof BarangMasukRoute
   '/login': typeof LoginRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/akun': typeof AkunRoute
   '/barang': typeof BarangRoute
   '/barang-masuk': typeof BarangMasukRoute
   '/login': typeof LoginRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/akun': typeof AkunRoute
   '/barang': typeof BarangRoute
   '/barang-masuk': typeof BarangMasukRoute
   '/login': typeof LoginRoute
@@ -65,14 +74,22 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/barang' | '/barang-masuk' | '/login' | '/api/$'
+  fullPaths: '/' | '/akun' | '/barang' | '/barang-masuk' | '/login' | '/api/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/barang' | '/barang-masuk' | '/login' | '/api/$'
-  id: '__root__' | '/' | '/barang' | '/barang-masuk' | '/login' | '/api/$'
+  to: '/' | '/akun' | '/barang' | '/barang-masuk' | '/login' | '/api/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/akun'
+    | '/barang'
+    | '/barang-masuk'
+    | '/login'
+    | '/api/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AkunRoute: typeof AkunRoute
   BarangRoute: typeof BarangRoute
   BarangMasukRoute: typeof BarangMasukRoute
   LoginRoute: typeof LoginRoute
@@ -86,6 +103,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/akun': {
+      id: '/akun'
+      path: '/akun'
+      fullPath: '/akun'
+      preLoaderRoute: typeof AkunRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/barang': {
@@ -121,6 +145,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AkunRoute: AkunRoute,
   BarangRoute: BarangRoute,
   BarangMasukRoute: BarangMasukRoute,
   LoginRoute: LoginRoute,

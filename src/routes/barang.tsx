@@ -4,6 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/AppShell'
+import { ProductsTable } from '@/components/ProductsTable'
 import { getSessionFromRequest } from '@/server/auth'
 import { toRole } from '@/shared/roles'
 import {
@@ -258,22 +259,14 @@ function ProductsPage() {
               <div className="divide-y divide-base-200 md:hidden">
                 {products.map((product) => <ProductCard key={product.id} product={product} canEdit={user.role === 'pemilik'} onEdit={startEditing} />)}
               </div>
-              <div className="hidden overflow-x-auto md:block">
-                <table className="table">
-                  <thead><tr><th>Barang</th><th>Stok</th><th>Harga beli</th><th>Harga jual</th>{user.role === 'pemilik' ? <th /> : null}</tr></thead>
-                  <tbody>
-                    {products.map((product) => (
-                      <tr key={product.id}>
-                        <td><div className="font-semibold">{product.name}</div><div className="text-xs text-base-content/60">per {product.unit}</div></td>
-                        <td className="font-semibold">{formatQuantity(product.stock)} {product.unit}</td>
-                        <td>{formatRupiah(product.buyPrice)}</td>
-                        <td>{formatRupiah(product.sellPrice)}</td>
-                        {user.role === 'pemilik' ? <td className="text-right"><button type="button" className="btn btn-outline btn-sm" onClick={() => startEditing(product)}>Ubah harga</button></td> : null}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ProductsTable
+                products={products}
+                canEdit={user.role === 'pemilik'}
+                onEdit={(productId) => {
+                  const product = products.find((item) => item.id === productId)
+                  if (product) startEditing(product)
+                }}
+              />
             </>
           )}
         </section>

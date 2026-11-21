@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
-    "start": "vite preview --host 0.0.0.0 --port 3000",
+    "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -23,6 +23,7 @@
     "daisyui": "5.8.1",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.19",
+    "lucide-react": "^1.77.0",
     "postgres": "4.1.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -37,6 +38,8 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
     "drizzle-kit": "0.31.11",
+    "nitro": "3.0.261103-rc",
+    "oxc-transform-react": "^0.156.0",
     "tsx": "4.20.3",
     "typescript": "5.8.3",
     "vite": "8.3.8"

@@ -3,6 +3,7 @@
     { "path": "/", "title": "Beranda Kasier" },
     { "path": "/login", "title": "Masuk ke Kasier" },
     { "path": "/barang", "title": "Daftar Barang" },
-    { "path": "/barang-masuk", "title": "Barang Masuk" }
+    { "path": "/barang-masuk", "title": "Barang Masuk" },
+    { "path": "/akun", "title": "Kelola Akun" }
   ]
 }
