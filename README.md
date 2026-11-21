@@ -47,6 +47,15 @@ Buka `http://localhost:3000/login`, lalu masuk memakai `OWNER_EMAIL` dan `OWNER_
 
 Setiap pencatatan barang masuk disimpan dalam satu transaksi database: catatan barang masuk dan penambahan stok berhasil bersama-sama atau dibatalkan bersama-sama.
 
+## Menjalankan build produksi dengan Nitro
+
+Jalankan build, lalu start server Node.js dari hasil build:
+
+```bash
+pnpm build
+pnpm start
+```
+
 ## Pemeriksaan teknis
 
 ```bash
