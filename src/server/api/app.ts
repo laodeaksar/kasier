@@ -4,9 +4,11 @@ import { getAuth } from '@/server/auth'
 import { ApiError, firstValidationMessage, readJsonBody } from '@/server/api/errors'
 import { requireRole } from '@/server/middleware/permissions'
 import { createProduct, listProducts, updateProductPrices } from '@/server/services/products'
+import { createSale } from '@/server/services/sales'
 import { createStockIn, listStockIns } from '@/server/services/stock-ins'
 import { createCashierAccount, listCashierAccounts } from '@/server/services/users'
 import { productCreateSchema, productPriceUpdateSchema } from '@/shared/validators/products'
+import { saleCreateSchema } from '@/shared/validators/sales'
 import { stockInCreateSchema } from '@/shared/validators/stock-ins'
 import { cashierCreateSchema } from '@/shared/validators/users'
 
@@ -25,7 +27,7 @@ api.get('/api/health', (context) => {
   return context.json({
     ok: true,
     service: 'kasier',
-    stage: 'tahap-2',
+    stage: 'tahap-3',
   })
 })
 
@@ -78,6 +80,17 @@ api.post('/api/stock-ins', async (context) => {
   }
 
   return context.json({ stockIn: await createStockIn(result.output, session.user.id) }, 201)
+})
+
+api.post('/api/sales', async (context) => {
+  const session = await requireRole(context.req.raw, ['kasir', 'pemilik'])
+  const body = await readJsonBody(context.req.raw)
+  const result = v.safeParse(saleCreateSchema, body)
+  if (!result.success) {
+    throw new ApiError(400, firstValidationMessage(result.issues))
+  }
+
+  return context.json({ sale: await createSale(result.output, session.user.id) }, 201)
 })
 
 api.get('/api/users', async (context) => {

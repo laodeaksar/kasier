@@ -42,3 +42,25 @@ Tidak memasang Recharts, layanan berbayar, database terkelola Manus, storage, at
 
 ### Batas tahap
 Tidak membangun penjualan/kasir, utang, pembayaran utang, foto barang, katalog publik, laporan, grafik, atau fitur masa depan. Tidak mengubah ulang skema dan data Tahap 1 selain menjalankan migrasi yang telah diizinkan pada database kosong.
+
+
+## Tahap 3 — Penjualan kasir dan stok atomik
+
+### Cakupan dan keputusan
+- Halaman `/kasir` tersedia bagi pengguna login berperan `kasir` atau `pemilik`; keranjang menggunakan TanStack Store yang sudah ada.
+- Skema Valibot bersama memvalidasi item, jumlah, metode pembayaran, serta nama/kontak ketika metode `utang` dipilih.
+- Browser hanya mengirim product ID, quantity, metode bayar, dan data pembeli bila perlu. Server membaca harga aktif, membulatkan setiap subtotal baris ke Rupiah terdekat, lalu menjumlahkan total.
+- Penjualan, item dengan snapshot `unit_price`, pembeli (untuk `utang`), dan pengurangan stok disimpan dalam satu transaksi PostgreSQL. Tahap ini tidak membuat atau memperbarui saldo utang ataupun pembayaran; itu tetap menjadi Tahap 4.
+- Stok dikurangi dengan conditional update atomik `stock >= quantity` di database; product ID yang berulang diagregasi dan baris barang diproses dengan urutan deterministik. Jika satu pembaruan gagal, transaksi dibatalkan seluruhnya.
+- Gunakan tabel `sales`, `sale_items`, `customers` dan tipe pembayaran yang sudah ada pada schema/migrasi. Tidak menambah pustaka, layanan, atau perubahan skema jika tidak diperlukan.
+
+### Struktur yang dipakai
+- `src/routes/kasir.tsx`: halaman transaksi kasir mobile-first.
+- `src/stores/cart.ts`: state keranjang TanStack Store dan helper perubahan jumlah/item.
+- `src/shared/validators/sales.ts`: validasi payload penjualan bersama di browser dan server.
+- `src/server/api/app.ts`: endpoint `POST /api/sales`, dilindungi untuk kasir/pemilik.
+- `src/server/services/sales.ts`: pengambilan harga aktif, hitung total, simpan sale/item/pembeli dan pengurangan stok secara atomik.
+- `public/manus-routes.json`, route tree, `AppShell` dan dashboard disinkronkan dengan `/kasir`.
+
+### Batas tahap
+Belum membangun daftar utang, saldo utang, pembayaran, riwayat atau pembatalan transaksi, struk, laporan, katalog, foto, maupun fitur masa depan.

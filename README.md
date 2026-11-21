@@ -1,8 +1,8 @@
 # Kasier — AR Shop
 
-Kasier adalah aplikasi web sederhana untuk toko sembako AR Shop. Tahap 1 menyiapkan login, role, database, dan schema. Tahap 2 sekarang menyediakan daftar barang, tambah barang, ubah harga oleh pemilik, serta pencatatan barang masuk yang menambah stok secara otomatis.
+Kasier adalah aplikasi web sederhana untuk toko sembako AR Shop. Tahap 1 menyiapkan login, role, database, dan schema. Tahap 2 menyediakan daftar barang, tambah barang, ubah harga oleh pemilik, serta pencatatan barang masuk yang menambah stok secara otomatis. Tahap 3 menambahkan alur transaksi kasir dengan pemeriksaan stok dan perhitungan harga di server.
 
-Fitur kasir/penjualan, utang, foto, dan katalog publik belum dibuat karena dikerjakan pada tahap berikutnya setelah persetujuan.
+Pencatatan saldo dan pembayaran Utang, foto, dan katalog publik tetap dikerjakan pada tahap berikutnya setelah persetujuan.
 
 ## Menyiapkan database Neon
 
@@ -46,6 +46,16 @@ Buka `http://localhost:3000/login`, lalu masuk memakai `OWNER_EMAIL` dan `OWNER_
 6. Sebagai pemilik, buka **Kelola Akun**, isi nama, email, dan kata sandi awal untuk membuat akun kasir. Akun yang dibuat otomatis berperan sebagai kasir.
 
 Setiap pencatatan barang masuk disimpan dalam satu transaksi database: catatan barang masuk dan penambahan stok berhasil bersama-sama atau dibatalkan bersama-sama.
+
+## Mencoba Tahap 3
+
+1. Masuk sebagai pemilik atau akun kasir, lalu buka menu **Kasir**.
+2. Pilih jumlah untuk barang dan tekan **Tambahkan ke keranjang**. Ubah jumlah di keranjang atau hapus barang bila perlu.
+3. Pilih **Lunas** atau **Utang**. Jika memilih Utang, isi nama dan kontak pembeli; tahap ini hanya menyimpan data pembeli bersama transaksi, belum mencatat saldo atau pembayaran utang.
+4. Tekan **Simpan Transaksi**. Server mengambil harga yang berlaku, membulatkan subtotal setiap baris ke Rupiah terdekat, menghitung total, dan mengurangi stok dalam satu transaksi database.
+5. Jika stok kurang, transaksi ditolak seluruhnya dan pesan akan menyebut barang yang perlu dikurangi. Total yang dikonfirmasi setelah berhasil adalah total hasil server, bukan perkiraan di layar.
+
+Untuk mencoba penolakan stok tanpa mengubah data toko secara langsung, gunakan barang dengan stok yang memang lebih kecil dari jumlah keranjang, lalu pastikan transaksi tidak tersimpan dan stok tetap sama.
 
 ## Menjalankan build produksi dengan Nitro
 
