@@ -1,13 +1,14 @@
 import { Field, Form, reset, useForm } from '@formisch/react'
-import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import * as v from 'valibot'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AppShell } from '@/components/AppShell'
-import { getSessionFromRequest } from '@/server/auth'
-import { toRole } from '@/shared/roles'
+import { clearCachedCashierPage, primeCashierPageCache } from '@/shared/pwa'
+import { requireRouteSession } from '@/shared/route-access'
+import { listQueuedSales, readCachedProducts, readProductsCachedAt, removeQueuedSale, saveCachedProducts } from '@/shared/offline-db'
+import { submitLunasSale, submitUtangSale, syncQueuedSalesForUser } from '@/shared/offline-sales'
 import { addCartItem, cartStore, clearCart, removeCartItem, setCartItemQuantity } from '@/stores/cart'
 import {
   calculateSaleLineSubtotal,
@@ -15,6 +16,7 @@ import {
   saleCheckoutSchema,
   saleCreateSchema,
   type SaleCheckoutInput,
+  type SaleCreateInput,
 } from '@/shared/validators/sales'
 
 type ProductOption = {
@@ -25,74 +27,105 @@ type ProductOption = {
   stock: number
 }
 
-type SaleResult = {
-  id: string
-  total: number
-  paymentMethod: 'lunas' | 'utang'
-  createdAt: string
-  items: Array<{
-    productId: string
-    productName: string
-    unit: string
-    quantity: number
-    unitPrice: number
-    subtotal: number
-  }>
-}
-
-const loadPrivateSession = createServerFn({ method: 'GET' }).handler(async () => {
-  const session = await getSessionFromRequest(getRequest())
-  if (!session) {
-    throw redirect({ to: '/login' })
-  }
-
-  return {
-    user: {
-      name: session.user.name,
-      email: session.user.email,
-      role: toRole(session.user.role),
-    },
-  }
-})
-
 export const Route = createFileRoute('/kasir')({
-  loader: () => loadPrivateSession(),
+  beforeLoad: ({ context }) => ({ session: requireRouteSession(context) }),
   component: CashierPage,
 })
 
 function CashierPage() {
   const router = useRouter()
-  const { user } = Route.useLoaderData()
+  const { session, queryClient } = Route.useRouteContext()
+  const user = session!.user
   const cartItems = useStore(cartStore, (state) => state.items)
-  const [products, setProducts] = useState<ProductOption[]>([])
+  const productsQuery = useQuery({
+    queryKey: ['products'],
+    queryFn: fetchProducts,
+  })
+  const productsData = productsQuery.data
+  const products = productsData?.products ?? []
+  const queueQuery = useQuery({
+    queryKey: ['offline-sales-queue', user.id],
+    queryFn: () => listQueuedSales(user.id),
+  })
+  const [isOnline, setIsOnline] = useState(true)
+  const offlineMode = !isOnline || productsData?.offline === true
   const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({})
   const [paymentMethod, setPaymentMethod] = useState<'lunas' | 'utang'>('lunas')
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [pageError, setPageError] = useState<string | null>(null)
   const [cartError, setCartError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [noticeKind, setNoticeKind] = useState<'success' | 'pending' | 'error'>('success')
+  const utangIdempotencyKey = useRef<string | null>(null)
   const checkoutForm = useCheckoutForm()
-
-  async function loadProducts() {
-    setIsLoading(true)
-    setPageError(null)
-    try {
-      const response = await fetch('/api/products', { credentials: 'same-origin' })
-      const payload = (await response.json().catch(() => null)) as { products?: ProductOption[]; error?: string }
-      if (!response.ok) throw new Error(payload.error ?? 'Daftar barang tidak dapat dimuat.')
-      setProducts(payload.products ?? [])
-    } catch (error) {
-      setPageError(error instanceof Error ? error.message : 'Daftar barang tidak dapat dimuat.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const saleMutation = useMutation({
+    mutationFn: async ({ input, idempotencyKey }: { input: SaleCreateInput; idempotencyKey?: string }) => {
+      if (input.paymentMethod === 'utang') {
+        return { status: 'confirmed' as const, sale: await submitUtangSale(input, idempotencyKey!) }
+      }
+      return await submitLunasSale(input, user.id)
+    },
+    onSuccess: async (outcome) => {
+      clearCart()
+      setPaymentMethod('lunas')
+      if (outcome.status === 'confirmed' && outcome.sale.paymentMethod === 'utang') clearUtangRetryKey(user.id)
+      utangIdempotencyKey.current = null
+      reset(checkoutForm, { initialInput: { paymentMethod: 'lunas' } })
+      if (outcome.status === 'confirmed') {
+        setNoticeKind('success')
+        setNotice(`Transaksi dikonfirmasi server. Total: ${formatRupiah(outcome.sale.total)}. Nomor transaksi: ${outcome.sale.id}.`)
+        await queryClient.invalidateQueries({ queryKey: ['products'] })
+      } else if (outcome.status === 'needs_review') {
+        setNoticeKind('error')
+        setNotice('Server menolak transaksi ini. Transaksi belum berhasil; periksa daftar antrean sebelum membuat transaksi baru.')
+      } else {
+        setNoticeKind('pending')
+        setNotice('Transaksi Lunas masuk antrean perangkat dan belum dianggap berhasil. Total/stok final menunggu pemeriksaan server saat internet kembali.')
+      }
+      await queryClient.invalidateQueries({ queryKey: ['offline-sales-queue', user.id] })
+    },
+  })
 
   useEffect(() => {
-    void loadProducts()
+    primeCashierPageCache()
+    const updateOnlineState = () => setIsOnline(navigator.onLine)
+    updateOnlineState()
+    window.addEventListener('online', updateOnlineState)
+    window.addEventListener('offline', updateOnlineState)
+    return () => {
+      window.removeEventListener('online', updateOnlineState)
+      window.removeEventListener('offline', updateOnlineState)
+    }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    const syncQueue = async () => {
+      if (!navigator.onLine) return
+      try {
+        const result = await syncQueuedSalesForUser(user.id)
+        if (!active) return
+        if (result.confirmed.length > 0) {
+          const latest = result.confirmed[result.confirmed.length - 1]!
+          setNoticeKind('success')
+          setNotice(`${result.confirmed.length} transaksi antrean dikonfirmasi server. Total transaksi terbaru: ${formatRupiah(latest.total)}. Nomor: ${latest.id}.`)
+          await queryClient.invalidateQueries({ queryKey: ['products'] })
+        }
+        if (result.needsReview > 0) {
+          setNoticeKind('error')
+          setNotice(`${result.needsReview} transaksi antrean ditolak server dan perlu ditinjau. Transaksi tersebut belum berhasil.`)
+        }
+        await queryClient.invalidateQueries({ queryKey: ['offline-sales-queue', user.id] })
+      } catch (error) {
+        console.error('Antrean penjualan Kasier belum dapat disinkronkan.', error)
+      }
+    }
+    void syncQueue()
+    window.addEventListener('online', syncQueue)
+    return () => {
+      active = false
+      window.removeEventListener('online', syncQueue)
+    }
+  }, [queryClient, user.id])
 
   async function handleLogout() {
     await fetch('/api/auth/sign-out', {
@@ -101,6 +134,8 @@ function CashierPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })
+    await clearCachedCashierPage()
+    await router.invalidate()
     await router.navigate({ to: '/login' })
   }
 
@@ -132,44 +167,44 @@ function CashierPage() {
     }
 
     const { paymentMethod: validatedMethod, customerName, customerContact, items } = result.output
-    const requestBody = {
+    if (validatedMethod === 'utang' && offlineMode) {
+      setFormError('Pembayaran Utang hanya bisa disimpan saat terhubung ke internet. Data pembeli tidak disimpan offline.')
+      return
+    }
+    const expectedPrices = [...new Set(items.map(({ productId }) => productId))].map((productId) => {
+      const product = products.find((option) => option.id === productId)
+      return product ? { productId, sellPrice: product.sellPrice } : null
+    })
+    if (expectedPrices.some((price) => price === null)) {
+      setFormError('Harga salah satu barang tidak tersedia. Muat ulang daftar barang sebelum menyimpan.')
+      return
+    }
+
+    const requestBody: SaleCreateInput = {
       paymentMethod: validatedMethod,
       items: items.map(({ productId, quantity }) => ({ productId, quantity })),
+      expectedPrices: expectedPrices.filter((price): price is NonNullable<typeof price> => price !== null),
       ...(validatedMethod === 'utang' ? { customerName, customerContact } : {}),
     }
 
-    setIsSaving(true)
     try {
-      const response = await fetch('/api/sales', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      })
-      const payload = (await response.json().catch(() => null)) as { sale?: SaleResult; error?: string }
-      if (!response.ok) {
-        setFormError(payload.error ?? 'Transaksi gagal disimpan. Periksa stok lalu coba lagi.')
-        return
+      const idempotencyKey = validatedMethod === 'utang'
+        ? (utangIdempotencyKey.current ??= getUtangRetryKey(user.id))
+        : undefined
+      await saleMutation.mutateAsync({ input: requestBody, idempotencyKey })
+    } catch (error) {
+      const status = (error as { status?: number }).status
+      if (validatedMethod === 'utang' && status !== undefined && status > 0 && status < 500) {
+        utangIdempotencyKey.current = null
+        clearUtangRetryKey(user.id)
       }
-      if (!payload.sale) {
-        setFormError('Transaksi tersimpan tetapi konfirmasi server tidak dapat dibaca. Periksa daftar barang sebelum mencoba lagi.')
-        return
-      }
-
-      const savedSale = payload.sale
-      clearCart()
-      setPaymentMethod('lunas')
-      reset(checkoutForm, { initialInput: { paymentMethod: 'lunas' } })
-      setNotice(`Transaksi berhasil disimpan. Total dari server: ${formatRupiah(savedSale.total)}. Nomor transaksi: ${savedSale.id}.`)
-      await loadProducts()
-    } catch {
-      setFormError('Konfirmasi transaksi tidak diterima karena koneksi terputus. Muat ulang stok dan periksa sebelum mencoba lagi.')
-    } finally {
-      setIsSaving(false)
+      setFormError(error instanceof Error ? error.message : 'Konfirmasi transaksi tidak diterima. Muat ulang stok dan periksa sebelum mencoba lagi.')
     }
   }
 
   const previewTotal = getCartTotal(cartItems, products)
+  const pendingQueue = queueQuery.data?.filter((item) => item.status === 'pending') ?? []
+  const reviewQueue = queueQuery.data?.filter((item) => item.status === 'needs_review') ?? []
 
   return (
     <AppShell user={user} onLogout={handleLogout}>
@@ -183,8 +218,12 @@ function CashierPage() {
           <Link to="/barang" className="btn btn-outline min-h-11">Lihat Daftar Barang</Link>
         </div>
 
-        {notice ? <div role="status" className="alert alert-success text-sm"><span>{notice}</span></div> : null}
-        {pageError ? <div role="alert" className="alert alert-error text-sm"><span>{pageError}</span></div> : null}
+        {notice ? <div role={noticeKind === 'error' ? 'alert' : 'status'} className={`alert ${noticeKind === 'success' ? 'alert-success' : noticeKind === 'error' ? 'alert-error' : 'alert-warning'} text-sm`}><span>{notice}</span></div> : null}
+        {offlineMode ? <div role="status" className="alert alert-warning text-sm"><span>Mode offline. Harga dan stok yang terlihat berasal dari cache dan mungkin sudah berubah. Transaksi Lunas hanya akan masuk antrean; server belum mengonfirmasi.</span></div> : null}
+        {productsData?.offline ? <div role="status" className="alert alert-warning text-sm"><span>Daftar barang dibaca dari perangkat, terakhir disimpan {formatDateTime(productsData.lastUpdated)}. Harga dan stok mungkin kedaluwarsa.</span></div> : null}
+        {pendingQueue.length > 0 ? <div role="status" className="alert alert-info text-sm"><div><span>{pendingQueue.length} transaksi Lunas menunggu koneksi/server. Belum menjadi transaksi berhasil sampai server mengonfirmasi.</span>{isOnline ? <button type="button" className="btn btn-sm btn-outline mt-2" onClick={() => window.dispatchEvent(new Event('online'))}>Coba sinkronkan sekarang</button> : null}</div></div> : null}
+        {reviewQueue.length > 0 ? <div role="alert" className="alert alert-error text-sm"><div className="w-full"><p className="font-bold">Ada transaksi antrean yang perlu ditinjau. Server menolaknya; transaksi belum berhasil.</p>{reviewQueue.map((item) => <div key={item.idempotencyKey} className="mt-3 border-t border-error/20 pt-3"><p>{item.lastError ?? 'Server menolak transaksi.'} (dibuat {formatDateTime(item.createdAt)}).</p><p className="mt-1">Barang: {item.payload.items.map((line) => `${products.find((product) => product.id === line.productId)?.name ?? line.productId} × ${formatQuantity(line.quantity)}`).join(', ')}.</p><button type="button" className="btn btn-sm btn-outline mt-2" onClick={async () => { await removeQueuedSale(item.idempotencyKey); await queryClient.invalidateQueries({ queryKey: ['offline-sales-queue', user.id] }) }}>Hapus antrean lokal setelah ditinjau</button></div>)}</div></div> : null}
+        {productsQuery.error ? <div role="alert" className="alert alert-error text-sm"><span>{productsQuery.error instanceof Error ? productsQuery.error.message : 'Daftar barang tidak dapat dimuat.'}</span></div> : null}
         {cartError ? <div role="alert" className="alert alert-error text-sm"><span>{cartError}</span></div> : null}
 
         <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -192,11 +231,11 @@ function CashierPage() {
             <div className="flex items-center justify-between gap-4 border-b border-base-200 px-5 py-4">
               <div>
                 <h2 className="text-xl font-bold">Pilih Barang</h2>
-                <p className="mt-1 text-sm text-base-content/65">Harga jual dan stok terkini</p>
+                <p className="mt-1 text-sm text-base-content/65">{productsData?.offline ? 'Harga dan stok tersimpan di perangkat (mungkin kedaluwarsa)' : 'Harga jual dan stok terkini'}</p>
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadProducts()} disabled={isLoading}>Muat ulang</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => void productsQuery.refetch()} disabled={productsQuery.isFetching}>Muat ulang</button>
             </div>
-            {isLoading ? (
+            {productsQuery.isPending ? (
               <div className="flex items-center gap-3 px-5 py-10 text-sm text-base-content/65"><span className="loading loading-spinner loading-sm" /> Memuat daftar barang...</div>
             ) : products.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-base-content/65">Belum ada barang. <Link to="/barang" className="font-semibold text-primary underline">Tambahkan barang terlebih dahulu</Link>.</div>
@@ -314,7 +353,7 @@ function CashierPage() {
                       className="select select-bordered min-h-11 w-full"
                     >
                       <option value="lunas">Lunas</option>
-                      <option value="utang">Utang</option>
+                          <option value="utang" disabled={offlineMode}>Utang{offlineMode ? ' (perlu internet)' : ''}</option>
                     </select>
                     {field.errors?.[0] ? <span className="mt-1 text-sm text-error">{field.errors[0]}</span> : null}
                   </label>
@@ -332,9 +371,9 @@ function CashierPage() {
                 </div>
               ) : null}
 
-              <button type="submit" className="btn btn-primary min-h-12 w-full text-base" disabled={isSaving || isLoading || cartItems.length === 0}>
-                {isSaving ? <span className="loading loading-spinner loading-sm" /> : null}
-                {isSaving ? 'Menyimpan transaksi...' : 'Simpan Transaksi'}
+              <button type="submit" className="btn btn-primary min-h-12 w-full text-base" disabled={saleMutation.isPending || productsQuery.isPending || cartItems.length === 0 || (offlineMode && paymentMethod === 'utang')}>
+                {saleMutation.isPending ? <span className="loading loading-spinner loading-sm" /> : null}
+                {saleMutation.isPending ? 'Menyimpan transaksi...' : offlineMode ? 'Antrekan Transaksi Lunas' : 'Simpan Transaksi'}
               </button>
             </Form>
           </section>
@@ -360,6 +399,45 @@ function CustomerField({ form, path, label, placeholder }: { form: ReturnType<ty
       )}
     </Field>
   )
+}
+
+type ProductCatalogData = {
+  products: ProductOption[]
+  offline: boolean
+  lastUpdated: string
+}
+
+async function fetchProducts(): Promise<ProductCatalogData> {
+  let networkError = 'Daftar barang tidak dapat dimuat.'
+  let authorizationRejected = false
+  try {
+    const response = await fetch('/api/products', { credentials: 'same-origin' })
+    const payload = (await response.json().catch(() => null)) as { products?: ProductOption[]; error?: string } | null
+    if (response.status === 401 || response.status === 403) {
+      authorizationRejected = true
+      throw new Error(payload?.error ?? 'Sesi tidak lagi berwenang melihat daftar barang. Sambungkan internet dan masuk kembali.')
+    }
+    if (!response.ok) throw new Error(payload?.error ?? 'Server belum dapat memuat daftar barang.')
+    const safeProducts = (payload?.products ?? []).map(({ id, name, unit, sellPrice, stock }) => ({ id, name, unit, sellPrice, stock }))
+    try {
+      await saveCachedProducts(safeProducts)
+    } catch (error) {
+      console.warn('Daftar barang dimuat, tetapi tidak dapat disimpan ke cache perangkat.', error)
+    }
+    return { products: safeProducts, offline: false, lastUpdated: new Date().toISOString() }
+  } catch (error) {
+    if (authorizationRejected) throw error
+    networkError = error instanceof Error ? error.message : networkError
+  }
+
+  const cachedProducts = await readCachedProducts()
+  if (cachedProducts.length === 0) throw new Error(`${networkError} Tidak ada daftar barang tersimpan untuk digunakan offline.`)
+  const lastUpdated = await readProductsCachedAt() ?? new Date(0).toISOString()
+  return {
+    products: cachedProducts.map(({ id, name, unit, sellPrice, stock }) => ({ id, name, unit, sellPrice, stock })),
+    offline: true,
+    lastUpdated,
+  }
 }
 
 function getCartTotal(items: readonly { productId: string; quantity: number }[], products: ProductOption[]): number | null {
@@ -390,4 +468,22 @@ function formatRupiah(value: number) {
 
 function formatQuantity(value: number) {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 3 }).format(value)
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
+
+function getUtangRetryKey(userId: string): string {
+  const storageKey = `kasier:utang-retry:${userId}`
+  if (typeof sessionStorage === 'undefined') return crypto.randomUUID()
+  const existing = sessionStorage.getItem(storageKey)
+  if (existing && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing)) return existing
+  const next = crypto.randomUUID()
+  sessionStorage.setItem(storageKey, next)
+  return next
+}
+
+function clearUtangRetryKey(userId: string): void {
+  if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(`kasier:utang-retry:${userId}`)
 }

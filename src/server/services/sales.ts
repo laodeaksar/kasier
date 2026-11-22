@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { getDb } from '@/db/client'
 import { customers, products, saleItems, sales } from '@/db/schema'
@@ -10,6 +11,15 @@ const MAX_QUANTITY_THOUSANDTHS = 999999999999n
 type SaleLine = {
   productId: string
   quantityThousandths: bigint
+}
+
+type SaleResponse = {
+  id: string
+  total: number
+  paymentMethod: 'lunas' | 'utang'
+  customerId: string | null
+  createdAt: string
+  items: Array<{ productId: string; productName: string; unit: string; quantity: number; unitPrice: number; subtotal: number }>
 }
 
 function formatQuantity(quantityThousandths: bigint): string {
@@ -44,8 +54,117 @@ function normalizeLines(input: SaleCreateInput): SaleLine[] {
     .sort((a, b) => a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0)
 }
 
-export async function createSale(input: SaleCreateInput, createdBy: string) {
+export function createSaleRequestHash(input: SaleCreateInput): string {
+  const canonicalRequest = JSON.stringify({
+    paymentMethod: input.paymentMethod,
+    items: normalizeLines(input).map((line) => ({
+      productId: line.productId,
+      quantityThousandths: line.quantityThousandths.toString(),
+    })),
+    expectedPrices: input.expectedPrices
+      ? [...input.expectedPrices].sort((a, b) => a.productId.localeCompare(b.productId))
+      : null,
+    customerName: input.customerName?.trim() ?? null,
+    customerContact: input.customerContact?.trim() ?? null,
+  })
+  return createHash('sha256').update(canonicalRequest).digest('hex')
+}
+
+function normalizeExpectedPrices(input: SaleCreateInput): Map<string, number> | null {
+  if (!input.expectedPrices) return null
+  const expectedPrices = new Map<string, number>()
+  for (const item of input.expectedPrices) {
+    if (expectedPrices.has(item.productId)) {
+      throw new ApiError(400, 'Data harga pada keranjang tidak valid. Muat ulang daftar barang.')
+    }
+    expectedPrices.set(item.productId, item.sellPrice)
+  }
+  const itemIds = normalizeLines(input).map((line) => line.productId)
+  if (expectedPrices.size !== itemIds.length || itemIds.some((id) => !expectedPrices.has(id))) {
+    throw new ApiError(400, 'Daftar harga pada keranjang tidak cocok. Muat ulang daftar barang.')
+  }
+  return expectedPrices
+}
+
+async function findSaleByKey(idempotencyKey: string, createdBy: string): Promise<{ sale: SaleResponse; requestHash: string | null } | null> {
+  const db = getDb()
+  const [storedSale] = await db.select().from(sales).where(and(
+    eq(sales.idempotencyKey, idempotencyKey),
+    eq(sales.createdBy, createdBy),
+  )).limit(1)
+  if (!storedSale) return null
+  const rows = await db
+    .select({
+      productId: saleItems.productId,
+      productName: products.name,
+      unit: products.unit,
+      quantity: saleItems.quantity,
+      unitPrice: saleItems.unitPrice,
+    })
+    .from(saleItems)
+    .innerJoin(products, eq(products.id, saleItems.productId))
+    .where(eq(saleItems.saleId, storedSale.id))
+    .orderBy(asc(saleItems.productId))
+
+  return {
+    requestHash: storedSale.idempotencyRequestHash,
+    sale: {
+      id: storedSale.id,
+      total: storedSale.total,
+      paymentMethod: storedSale.paymentMethod,
+      customerId: storedSale.customerId,
+      createdAt: storedSale.createdAt.toISOString(),
+      items: rows.map((row) => ({
+        productId: row.productId,
+        productName: row.productName,
+        unit: row.unit,
+        quantity: Number(row.quantity),
+        unitPrice: row.unitPrice,
+        subtotal: calculateSaleLineSubtotal(row.unitPrice, Number(row.quantity)),
+      })),
+    },
+  }
+}
+
+function assertMatchingIdempotentRequest(storedHash: string | null, requestHash: string): void {
+  if (storedHash !== requestHash) {
+    throw new ApiError(409, 'Kunci transaksi ini sudah dipakai untuk isi berbeda. Periksa antrean sebelum mencoba lagi.')
+  }
+}
+
+export async function createSale(input: SaleCreateInput, createdBy: string, idempotencyKey: string): Promise<SaleResponse> {
+  const requestHash = createSaleRequestHash(input)
+  const alreadySaved = await findSaleByKey(idempotencyKey, createdBy)
+  if (alreadySaved) {
+    assertMatchingIdempotentRequest(alreadySaved.requestHash, requestHash)
+    return alreadySaved.sale
+  }
+
+  try {
+    return await createSaleTransaction(input, createdBy, idempotencyKey, requestHash)
+  } catch (error) {
+    // A concurrent retry may hit a stock error or the unique key after the first
+    // request commits. Its transaction has rolled back; return only the same payload.
+    let committed: Awaited<ReturnType<typeof findSaleByKey>>
+    try {
+      committed = await findSaleByKey(idempotencyKey, createdBy)
+    } catch {
+      throw error
+    }
+    if (!committed) {
+      if ((error as { code?: string }).code === '23505') {
+        throw new ApiError(409, 'Kunci transaksi sudah digunakan. Buat antrean baru lalu coba lagi.')
+      }
+      throw error
+    }
+    assertMatchingIdempotentRequest(committed.requestHash, requestHash)
+    return committed.sale
+  }
+}
+
+async function createSaleTransaction(input: SaleCreateInput, createdBy: string, idempotencyKey: string, requestHash: string) {
   const lines = normalizeLines(input)
+  const expectedPrices = normalizeExpectedPrices(input)
   const now = new Date()
 
   return getDb().transaction(async (tx) => {
@@ -72,6 +191,13 @@ export async function createSale(input: SaleCreateInput, createdBy: string) {
       const product = productById.get(line.productId)
       if (!product) {
         throw new ApiError(404, 'Barang yang dipilih tidak ditemukan.')
+      }
+
+      if (expectedPrices && expectedPrices.get(product.id) !== product.sellPrice) {
+        throw new ApiError(
+          409,
+          `Harga ${product.name} berubah sejak daftar barang dimuat. Transaksi belum disimpan; muat ulang harga lalu periksa ulang keranjang.`,
+        )
       }
 
       const availableThousandths = parseDatabaseQuantity(product.stock)
@@ -156,6 +282,8 @@ export async function createSale(input: SaleCreateInput, createdBy: string) {
         id: saleId,
         total,
         paymentMethod: input.paymentMethod,
+        idempotencyKey,
+        idempotencyRequestHash: requestHash,
         customerId,
         createdBy,
         createdAt: now,

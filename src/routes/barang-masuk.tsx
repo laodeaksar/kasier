@@ -1,11 +1,9 @@
 import { Field, Form, reset, useField, useForm } from '@formisch/react'
-import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/AppShell'
-import { getSessionFromRequest } from '@/server/auth'
-import { toRole } from '@/shared/roles'
+import { clearCachedCashierPage } from '@/shared/pwa'
+import { requireRouteSession } from '@/shared/route-access'
 import { stockInCreateSchema, type StockInCreateInput } from '@/shared/validators/stock-ins'
 
 type ProductOption = {
@@ -28,29 +26,15 @@ type StockIn = {
   createdAt: string
 }
 
-const loadPrivateSession = createServerFn({ method: 'GET' }).handler(async () => {
-  const session = await getSessionFromRequest(getRequest())
-  if (!session) {
-    throw redirect({ to: '/login' })
-  }
-
-  return {
-    user: {
-      name: session.user.name,
-      email: session.user.email,
-      role: toRole(session.user.role),
-    },
-  }
-})
-
 export const Route = createFileRoute('/barang-masuk')({
-  loader: () => loadPrivateSession(),
+  beforeLoad: ({ context }) => ({ session: requireRouteSession(context) }),
   component: StockInPage,
 })
 
 function StockInPage() {
   const router = useRouter()
-  const { user } = Route.useLoaderData()
+  const { session } = Route.useRouteContext()
+  const user = session!.user
   const [products, setProducts] = useState<ProductOption[]>([])
   const [stockIns, setStockIns] = useState<StockIn[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -96,6 +80,8 @@ function StockInPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })
+    await clearCachedCashierPage()
+    await router.invalidate()
     await router.navigate({ to: '/login' })
   }
 
