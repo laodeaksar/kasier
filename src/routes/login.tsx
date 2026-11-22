@@ -1,22 +1,11 @@
 import { Field, Form, useForm } from '@formisch/react'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
 import { useState } from 'react'
-import { getSessionFromRequest } from '@/server/auth'
 import { loginSchema } from '@/shared/validators/auth'
 
-const checkExistingSession = createServerFn({ method: 'GET' }).handler(async () => {
-  const session = await getSessionFromRequest(getRequest())
-  return Boolean(session)
-})
-
 export const Route = createFileRoute('/login')({
-  loader: async () => {
-    if (await checkExistingSession()) {
-      throw redirect({ to: '/' })
-    }
-    return null
+  beforeLoad: ({ context }) => {
+    if (context.session) throw redirect({ to: '/' })
   },
   component: LoginPage,
 })
@@ -45,6 +34,7 @@ function LoginPage() {
         return
       }
 
+      await router.invalidate()
       await router.navigate({ to: '/' })
     } finally {
       setIsSubmitting(false)

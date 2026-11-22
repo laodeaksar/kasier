@@ -20,6 +20,11 @@ const saleItemSchema = v.object({
   quantity: saleQuantity,
 })
 
+const expectedProductPriceSchema = v.object({
+  productId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  sellPrice: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(2147483647)),
+})
+
 const checkoutFields = {
   paymentMethod: v.picklist(['lunas', 'utang'], 'Pilih metode pembayaran.'),
   customerName: v.optional(v.union([
@@ -60,6 +65,7 @@ export const saleCreateSchema = v.pipe(
       v.array(saleItemSchema, 'Keranjang tidak dapat dibaca.'),
       v.minLength(1, 'Pilih setidaknya satu barang.'),
     ),
+    expectedPrices: v.optional(v.array(expectedProductPriceSchema)),
   }),
   v.check((input) => hasCustomerForDebt(input), 'Isi nama dan kontak pembeli untuk pembayaran utang.'),
 )

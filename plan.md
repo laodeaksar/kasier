@@ -64,3 +64,21 @@ Tidak membangun penjualan/kasir, utang, pembayaran utang, foto barang, katalog p
 
 ### Batas tahap
 Belum membangun daftar utang, saldo utang, pembayaran, riwayat atau pembatalan transaksi, struk, laporan, katalog, foto, maupun fitur masa depan.
+
+## PWA dan antrean kasir offline
+
+### Cakupan dan keputusan yang disetujui
+- Buat PWA milik aplikasi: manifest dan service worker lokal, tanpa plugin atau layanan baru.
+- Cache app shell dan aset publik, serta halaman kasir setelah pernah dibuka online. Jangan cache respons API sesi atau daftar produk melalui service worker.
+- Simpan di IndexedDB melalui Dexie hanya field produk yang dipakai kasir (ID, nama, satuan, harga jual, stok) dan payload transaksi Lunas yang tertunda; jangan simpan harga beli, token sesi, atau data pembeli.
+- Penjualan saat offline berstatus **menunggu koneksi** saja; server tetap menghitung harga/total dan memvalidasi stok saat sinkronisasi. Perubahan stok/harga yang menyebabkan penolakan harus ditandai perlu ditinjau, bukan dianggap berhasil.
+- Setiap percobaan transaksi membawa kunci idempotensi yang unik dan tetap sama saat retry; server memastikan kunci sama dengan payload yang sama tidak membuat transaksi atau pengurangan stok ganda.
+- Harga jual yang terlihat saat antre dibuat ikut dikirim hanya sebagai ekspektasi pembanding. Server tetap menghitung total dengan harga database; bila harga berubah, server menolak transaksi tertunda agar kasir meninjau ulang.
+- Transaksi Utang tidak dapat diantrekan offline. Antrean dikaitkan ke pengguna pembuatnya dan tidak disinkronkan oleh akun berbeda.
+
+### Struktur yang dipakai
+- `public/manifest.webmanifest`, `public/sw.js`, dan `public/offline.html`: instalasi PWA, cache shell, serta fallback navigasi.
+- `src/shared/offline-db.ts`: database IndexedDB/Dexie untuk cache katalog kasir dan antrean.
+- `src/routes/kasir.tsx`: fallback data produk, indikator data offline, antrean dan sinkronisasi saat jaringan kembali.
+- `src/db/schema.ts`, `drizzle`: kolom kunci idempotensi dan hash payload yang nullable untuk kompatibilitas transaksi lama.
+- `src/server/services/sales.ts`, `src/server/api/app.ts`: deduplikasi, validasi ulang oleh server, dan penolakan penggunaan kunci sama untuk isi berbeda.

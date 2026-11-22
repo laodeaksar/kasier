@@ -129,6 +129,8 @@ export const sales = pgTable(
     id: text('id').primaryKey(),
     total: integer('total').notNull(),
     paymentMethod: paymentMethodEnum('payment_method').notNull(),
+    idempotencyKey: text('idempotency_key').unique(),
+    idempotencyRequestHash: text('idempotency_request_hash'),
     customerId: text('customer_id').references(() => customers.id),
     createdBy: text('created_by')
       .notNull()

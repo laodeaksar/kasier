@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "Kasier — AR Shop",
+  "short_name": "Kasier AR",
+  "description": "Aplikasi kasir dan pencatatan toko AR Shop.",
+  "lang": "id-ID",
+  "start_url": "/kasir",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "/ar-shop-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

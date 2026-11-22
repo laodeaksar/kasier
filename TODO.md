@@ -35,3 +35,17 @@ Migrasi database Tahap 1 sudah dijalankan pada database kosong yang disediakan. 
 - [x] Belum ada pembuatan tabel/riwayat saldo utang, pembayaran utang, pembatalan penjualan, struk, laporan, atau fitur Tahap 4 dan seterusnya.
 
 Typecheck, build, validasi manifest, dan uji unit pembulatan/schema berhasil. Transaksi database dan persaingan kasir belum diuji dengan menulis ke database bersama; logika Drizzle/PostgreSQL diperiksa dari kode.
+
+## PWA dan antrean kasir offline (disetujui, belum selesai)
+
+- [x] Aplikasi dapat dipasang sebagai PWA menggunakan manifest milik aplikasi dan service worker tanpa plugin/layanan baru; aset app shell dan fallback offline tersedia.
+- [ ] Setelah halaman `/kasir` pernah dibuka online, halaman dapat dibuka kembali offline; service worker tidak menyimpan respons API sesi atau API produk. Kodenya tersedia, tetapi uji runtime offline di browser belum dilakukan.
+- [x] Daftar barang dapat dibaca dari cache IndexedDB saat offline. Cache tabel produk hanya memuat ID, nama, satuan, harga jual, dan stok; layar memberi tahu bahwa harga/stok mungkin kedaluwarsa. Waktu cache disimpan terpisah.
+- [x] Penjualan **Lunas** dapat disimpan sebagai antrean lokal dengan status “menunggu koneksi”; antrean tidak menyatakan transaksi berhasil dan tidak mengurangi stok server sebelum server memprosesnya.
+- [x] Saat koneksi kembali, transaksi tertunda dikirim dengan kunci idempotensi tetap. Server menghitung ulang harga/total serta memeriksa stok dan harga terkini; sukses hanya setelah respons konfirmasi server.
+- [x] Jika harga/stok terkini atau validasi server menyebabkan penolakan antrean, transaksi ditandai perlu ditinjau dan tidak dihapus atau dinyatakan berhasil.
+- [x] Pembayaran **Utang** tidak dapat disimpan/diantrekan offline; nama dan kontak pembeli tidak disimpan dalam antrean lokal. Hanya kunci retry tanpa data pembeli dapat disimpan di sesi tab.
+- [x] Antrean hanya disinkronkan untuk pengguna yang membuatnya; kunci idempotensi sama dengan payload berbeda ditolak oleh server.
+- [x] Migrasi database idempotensi nullable dibuat agar kompatibel dengan baris penjualan lama. Migrasi belum diterapkan ke database toko.
+
+Typecheck, build, tes route, tes hash idempotensi, validasi sintaks service worker dan format manifest berhasil. Tidak ada transaksi atau migrasi yang dijalankan pada database bersama. Uji offline langsung pada browser masih perlu dilakukan.

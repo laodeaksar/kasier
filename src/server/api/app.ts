@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import * as v from 'valibot'
 import { getAuth } from '@/server/auth'
 import { ApiError, firstValidationMessage, readJsonBody } from '@/server/api/errors'
-import { requireRole } from '@/server/middleware/permissions'
+import { loadSessionContext, requireRole, type ApiEnv } from '@/server/middleware/permissions'
 import { createProduct, listProducts, updateProductPrices } from '@/server/services/products'
 import { createSale } from '@/server/services/sales'
 import { createStockIn, listStockIns } from '@/server/services/stock-ins'
@@ -12,7 +12,7 @@ import { saleCreateSchema } from '@/shared/validators/sales'
 import { stockInCreateSchema } from '@/shared/validators/stock-ins'
 import { cashierCreateSchema } from '@/shared/validators/users'
 
-export const api = new Hono()
+export const api = new Hono<ApiEnv>()
 
 api.onError((error, context) => {
   if (error instanceof ApiError) {
@@ -39,13 +39,19 @@ api.on(['GET', 'POST'], '/api/auth', (context) => {
   return getAuth().handler(context.req.raw)
 })
 
+api.use('/api/products', loadSessionContext)
+api.use('/api/products/*', loadSessionContext)
+api.use('/api/stock-ins', loadSessionContext)
+api.use('/api/sales', loadSessionContext)
+api.use('/api/users', loadSessionContext)
+
 api.get('/api/products', async (context) => {
-  await requireRole(context.req.raw, ['kasir', 'pemilik'])
+  requireRole(context, ['kasir', 'pemilik'])
   return context.json({ products: await listProducts() })
 })
 
 api.post('/api/products', async (context) => {
-  await requireRole(context.req.raw, ['pemilik'])
+  requireRole(context, ['pemilik'])
   const body = await readJsonBody(context.req.raw)
   const result = v.safeParse(productCreateSchema, body)
   if (!result.success) {
@@ -56,7 +62,7 @@ api.post('/api/products', async (context) => {
 })
 
 api.patch('/api/products/:id', async (context) => {
-  await requireRole(context.req.raw, ['pemilik'])
+  requireRole(context, ['pemilik'])
   const body = await readJsonBody(context.req.raw)
   const result = v.safeParse(productPriceUpdateSchema, body)
   if (!result.success) {
@@ -67,12 +73,12 @@ api.patch('/api/products/:id', async (context) => {
 })
 
 api.get('/api/stock-ins', async (context) => {
-  await requireRole(context.req.raw, ['kasir', 'pemilik'])
+  requireRole(context, ['kasir', 'pemilik'])
   return context.json({ stockIns: await listStockIns() })
 })
 
 api.post('/api/stock-ins', async (context) => {
-  const session = await requireRole(context.req.raw, ['kasir', 'pemilik'])
+  const session = requireRole(context, ['kasir', 'pemilik'])
   const body = await readJsonBody(context.req.raw)
   const result = v.safeParse(stockInCreateSchema, body)
   if (!result.success) {
@@ -83,23 +89,27 @@ api.post('/api/stock-ins', async (context) => {
 })
 
 api.post('/api/sales', async (context) => {
-  const session = await requireRole(context.req.raw, ['kasir', 'pemilik'])
+  const session = requireRole(context, ['kasir', 'pemilik'])
+  const idempotencyKey = context.req.header('Idempotency-Key')
+  if (!idempotencyKey || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+    throw new ApiError(400, 'Kunci transaksi tidak valid. Muat ulang halaman Kasir lalu coba lagi.')
+  }
   const body = await readJsonBody(context.req.raw)
   const result = v.safeParse(saleCreateSchema, body)
   if (!result.success) {
     throw new ApiError(400, firstValidationMessage(result.issues))
   }
 
-  return context.json({ sale: await createSale(result.output, session.user.id) }, 201)
+  return context.json({ sale: await createSale(result.output, session.user.id, idempotencyKey) }, 201)
 })
 
 api.get('/api/users', async (context) => {
-  await requireRole(context.req.raw, ['pemilik'])
+  requireRole(context, ['pemilik'])
   return context.json({ users: await listCashierAccounts() })
 })
 
 api.post('/api/users', async (context) => {
-  await requireRole(context.req.raw, ['pemilik'])
+  requireRole(context, ['pemilik'])
   const body = await readJsonBody(context.req.raw)
   const result = v.safeParse(cashierCreateSchema, body)
   if (!result.success) {
